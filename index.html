@@ -8,6 +8,11 @@
   <h1>Каталог книг</h1>
   <!-- Здесь показываем загрузку или ошибку с кнопкой повторной попытки. -->
   <div id="appStatus" role="status"></div>
+  <form id="apiForm" hidden>
+    <label for="booksApiUrl">Адрес ресурса books</label>
+    <input id="booksApiUrl" type="url" placeholder="https://…" pattern="https://.+" required>
+    <button type="submit">Подключить каталог</button>
+  </form>
   <!-- Пока данные не загрузились, форму и списки скрываем. -->
   <div id="appContent" hidden>
 

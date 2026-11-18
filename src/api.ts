@@ -1,6 +1,10 @@
 import type { Book } from './task1-types';
 
-const API_URL = import.meta.env.VITE_BOOKS_API_URL?.trim().replace(/\/+$/, '');
+let API_URL = import.meta.env.VITE_BOOKS_API_URL?.trim().replace(/\/+$/, '');
+
+export function configureBooksApi(url: string): void {
+  API_URL = url.trim().replace(/\/+$/, '');
+}
 
 interface BookDTO {
   id: string;

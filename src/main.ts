@@ -5,7 +5,7 @@ import { createBookFromForm } from './task4-integration';
 import { filterByTitle, sortBooks } from './task5-utils';
 import { BookCatalog } from './task6-classes';
 import { Wishlist } from './task7-wishlist';
-import { fetchBooks, saveBook, deleteBook } from './api';
+import { configureBooksApi, fetchBooks, saveBook, deleteBook } from './api';
 
 // В каждый момент времени приложение находится ровно в одном состоянии.
 // Поле data доступно только при success, а message — только при error.
@@ -15,7 +15,9 @@ type AsyncState<T> =
   | { status: 'success'; data: T }
   | { status: 'error'; message: string };
 
-let state: AsyncState<Book[]> = { status: 'loading' };
+const hasBuildApiUrl = Boolean(import.meta.env.VITE_BOOKS_API_URL?.trim());
+const apiUrlKey = 'practice-4-2-api-url';
+let state: AsyncState<Book[]> = { status: 'idle' };
 // Ошибка сохранения отдельная: при ней загруженный список должен остаться виден.
 let errorMessage = '';
 // Не даём запустить два сохранения одновременно.
@@ -27,6 +29,8 @@ const savedWishlist = localStorage.getItem('wishlist');
 const wishlist = new Wishlist(savedWishlist ? JSON.parse(savedWishlist) : []);
 
 const appStatus = document.querySelector('#appStatus') as HTMLDivElement;
+const apiForm = document.querySelector('#apiForm') as HTMLFormElement;
+const apiInput = document.querySelector('#booksApiUrl') as HTMLInputElement;
 const appContent = document.querySelector('#appContent') as HTMLDivElement;
 const bookList = document.querySelector('#bookList') as HTMLDivElement;
 const wishlistContainer = document.querySelector('#wishlistContainer') as HTMLDivElement;
@@ -135,10 +139,11 @@ function render(): void {
   appStatus.className = '';
   // Форма и списки доступны только тогда, когда книги загружены.
   appContent.hidden = state.status !== 'success';
+  apiForm.hidden = hasBuildApiUrl || (state.status !== 'idle' && state.status !== 'error');
 
   switch (state.status) {
     case 'idle':
-      appStatus.textContent = 'Каталог готов к загрузке.';
+      // Пока адрес не задан, показываем только форму подключения.
       break;
     case 'loading':
       // Во время загрузки не показываем карточки от предыдущего состояния.
@@ -209,4 +214,22 @@ form.addEventListener('submit', async event => {
 filterBtn.addEventListener('click', render);
 searchInput.addEventListener('input', render);
 sortBySelect.addEventListener('change', render);
-void initApp();
+
+apiForm.addEventListener('submit', event => {
+  event.preventDefault();
+  const url = apiInput.value.trim();
+  configureBooksApi(url);
+  sessionStorage.setItem(apiUrlKey, url);
+  void initApp();
+});
+
+const savedApiUrl = hasBuildApiUrl ? null : sessionStorage.getItem(apiUrlKey);
+if (savedApiUrl) {
+  apiInput.value = savedApiUrl;
+  configureBooksApi(savedApiUrl);
+}
+if (hasBuildApiUrl || savedApiUrl) {
+  void initApp();
+} else {
+  render();
+}
