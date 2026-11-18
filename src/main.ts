@@ -5,7 +5,7 @@ import { createBookFromForm } from './task4-integration';
 import { filterByTitle, sortBooks } from './task5-utils';
 import { BookCatalog } from './task6-classes';
 import { Wishlist } from './task7-wishlist';
-import { fetchBooks, saveBooks } from './mock-api';
+import { fetchBooks, saveBook, deleteBook } from './api';
 
 // В каждый момент времени приложение находится ровно в одном состоянии.
 // Поле data доступно только при success, а message — только при error.
@@ -51,23 +51,19 @@ function showTemporaryError(error: unknown): void {
   }, 3000);
 }
 
-// Общая операция для добавления и удаления. Сначала сохраняем новый массив,
-// затем обновляем state. Так при сбое старые книги остаются на экране.
-async function changeBooks(newBooks: Book[]): Promise<boolean> {
-  if (saving) return false;
+// Меняем список только после подтверждения операции сервером.
+async function changeBooks(change: (catalog: BookCatalog) => Promise<void>): Promise<void> {
+  if (state.status !== 'success' || saving) return;
+  const catalog = new BookCatalog('main', state.data);
   saving = true;
   // render отключит кнопки добавления и удаления на время ожидания.
   render();
   try {
-    await saveBooks(newBooks);
-    // Эта строка выполняется только после успешного saveBooks.
-    state = { status: 'success', data: newBooks };
+    await change(catalog);
+    state = { status: 'success', data: catalog.getBooks() };
     errorMessage = '';
-    render();
-    return true;
   } catch (error) {
     showTemporaryError(error);
-    return false;
   } finally {
     // finally выполняется и после успеха, и после ошибки.
     saving = false;
@@ -91,12 +87,10 @@ function createBookCard(book: Book): HTMLDivElement {
   deleteBtn.textContent = 'Удалить';
   deleteBtn.disabled = saving;
   deleteBtn.addEventListener('click', async () => {
-    if (state.status !== 'success' || saving) return;
-    // BookCatalog меняет данные в памяти синхронно. Асинхронно только
-    // сохранение результата через changeBooks.
-    const catalog = new BookCatalog('main', state.data);
-    catalog.removeBook(book.id);
-    await changeBooks(catalog.getBooks());
+    await changeBooks(async catalog => {
+      await deleteBook(book.id);
+      catalog.removeBook(book.id);
+    });
   });
   card.append(deleteBtn);
 
@@ -183,7 +177,7 @@ function render(): void {
 }
 
 async function initApp(): Promise<void> {
-  // Сразу показываем загрузку, затем ждём ответ имитации сервера.
+  // Сразу показываем загрузку, затем ждём ответ сервера.
   state = { status: 'loading' };
   render();
   try {
@@ -202,11 +196,11 @@ form.addEventListener('submit', async event => {
   if (state.status !== 'success' || saving) return;
   try {
     const book = createBookFromForm(new FormData(form));
-    const catalog = new BookCatalog('main', state.data);
-    catalog.addBook(book);
-    // Очищаем поля только после успешной записи; при ошибке их можно исправить
-    // или отправить повторно, не вводя всё заново.
-    if (await changeBooks(catalog.getBooks())) form.reset();
+    await changeBooks(async catalog => {
+      const savedBook = await saveBook(book);
+      catalog.addBook(savedBook);
+      form.reset();
+    });
   } catch (error) {
     showTemporaryError(error);
   }
